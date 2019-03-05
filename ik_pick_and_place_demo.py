@@ -138,12 +138,39 @@ class PickAndPlace(object):
             return False
         return limb_joints
 
-    def _guarded_move_to_joint_position(self, joint_angles):
+    def _guarded_move_to_joint_position(self, joint_angles, approach=None):
         if joint_angles:
             self._limb.move_to_joint_positions(joint_angles)
         elif self._limb_name == 'left':
             rospy.logerr("No Joint Angles provided for move_to_joint_positions for left arm. Moving back to starting position.")
-            self._limb.move_to_joint_positions({'left_w0': 0.50139,
+            current_pose = self._limb.endpoint_pose()
+            ik_pose = Pose()
+            ik_pose.position.x = current_pose['position'].x
+            ik_pose.position.y = current_pose['position'].y
+            z_height = current_pose['position'].z
+            ik_pose.position.z = z_height+0.15
+            ik_pose.orientation.x = current_pose['orientation'].x
+            ik_pose.orientation.y = current_pose['orientation'].y
+            ik_pose.orientation.z = current_pose['orientation'].z
+            ik_pose.orientation.w = current_pose['orientation'].w
+            joint_angles= self.ik_request(ik_pose)
+            if joint_angles:
+              self._limb.move_to_joint_positions(joint_angles)
+              try_joint_angles = self.ik_request(approach)
+              if try_joint_angles:
+                self._limb.move_to_joint_positions(try_joint_angles)
+              else:
+                print('Failed to move up left arm, going to home')
+                self._limb.move_to_joint_positions({'left_w0': 0.50139,
+                                                 'left_w1': 1.40508,
+                                                 'left_w2': -0.30773584,
+                                                 'left_e0': -1.69264941,
+                                                 'left_e1': 1.8151054,
+                                                 'left_s0': 0.75142667,
+                                                 'left_s1': -1.08935144})
+            else:
+              print('Failed to move up left arm, going to home')
+              self._limb.move_to_joint_positions({'left_w0': 0.50139,
                                                  'left_w1': 1.40508,
                                                  'left_w2': -0.30773584,
                                                  'left_e0': -1.69264941,
@@ -152,7 +179,34 @@ class PickAndPlace(object):
                                                  'left_s1': -1.08935144})
         else:
             rospy.logerr("No Joint Angles provided for move_to_joint_positions for right arm. Moving back to starting position.")
-            self._limb.move_to_joint_positions({'right_w0': 0.0164238,
+            current_pose = self._limb.endpoint_pose()
+            ik_pose = Pose()
+            ik_pose.position.x = current_pose['position'].x
+            ik_pose.position.y = current_pose['position'].y
+            z_height = current_pose['position'].z
+            ik_pose.position.z = z_height+0.15
+            ik_pose.orientation.x = current_pose['orientation'].x
+            ik_pose.orientation.y = current_pose['orientation'].y
+            ik_pose.orientation.z = current_pose['orientation'].z
+            ik_pose.orientation.w = current_pose['orientation'].w
+            joint_angles= self.ik_request(ik_pose)
+            if joint_angles:
+              self._limb.move_to_joint_positions(joint_angles)
+              try_joint_angles = self.ik_request(approach)
+              if try_joint_angles:
+                self._limb.move_to_joint_positions(try_joint_angles)
+              else:
+                print('Failed to move up left arm, going to home')
+                self._limb.move_to_joint_positions({'left_w0': 0.50139,
+                                                 'left_w1': 1.40508,
+                                                 'left_w2': -0.30773584,
+                                                 'left_e0': -1.69264941,
+                                                 'left_e1': 1.8151054,
+                                                 'left_s0': 0.75142667,
+                                                 'left_s1': -1.08935144})
+            else:
+              print('Failed to move up right arm, going to home')
+              self._limb.move_to_joint_positions({'right_w0': 0.0164238,
                                                   'right_w1': 1.17581551,
                                                   'right_w2': -0.37732007,
                                                   'right_e0':  0.022188204,
@@ -173,7 +227,7 @@ class PickAndPlace(object):
         # approach with a pose the hover-distance above the requested pose
         approach.position.z = approach.position.z + self._hover_distance
         joint_angles = self.ik_request(approach)
-        self._guarded_move_to_joint_position(joint_angles)
+        self._guarded_move_to_joint_position(joint_angles, approach)
 
     def _retract(self):
         # retrieve current pose from endpoint
@@ -188,12 +242,12 @@ class PickAndPlace(object):
         ik_pose.orientation.w = current_pose['orientation'].w
         joint_angles = self.ik_request(ik_pose)
         # servo up from current pose
-        self._guarded_move_to_joint_position(joint_angles)
+        self._guarded_move_to_joint_position(joint_angles, ik_pose)
 
     def _servo_to_pose(self, pose):
         # servo down to release
         joint_angles = self.ik_request(pose)
-        self._guarded_move_to_joint_position(joint_angles)
+        self._guarded_move_to_joint_position(joint_angles, pose)
 
     def pick(self, pose):
         # open the gripper
@@ -220,7 +274,7 @@ class PickAndPlace(object):
 #---------------------------------------------------------------------------------
 #Loading Models
 
-def load_gazebo_models(table_pose=Pose(position=Point(x=1.35, y=-0.09, z=-0.1)),
+def load_gazebo_models(table_pose=Pose(position=Point(x=1.35, y=-0.09, z=-0.13)),
                        table_reference_frame="world",
                        # Hour Hand
                        brick1_pose=Pose(position=Point(x=0.4125, y=-0.590, z=0.7),orientation=Quaternion(x=0, y=0, z=0.70738827, w=0.70738827)), # brick 1 HA0
@@ -229,7 +283,7 @@ def load_gazebo_models(table_pose=Pose(position=Point(x=1.35, y=-0.09, z=-0.1)),
                        brick2_reference_frame="world",
                        brick3_pose=Pose(position=Point(x=0.720, y=-0.4475, z=0.7)), # brick 3 HA2
                        brick3_reference_frame="world",
-                       brick4_pose=Pose(position=Point(x=0.7875, y=-0.590, z=0.7),orientation=Quaternion(x=0, y=0, z=0.70738827, w=0.70738827)), # brick 4 HA3
+                       brick4_pose=Pose(position=Point(x=0.8175, y=-0.590, z=0.7),orientation=Quaternion(x=0, y=0, z=0.70738827, w=0.70738827)), # brick 4 HA3
                        brick4_reference_frame="world",
                        brick5_pose=Pose(position=Point(x=0.720, y=-0.7325, z=0.7)), # brick 5 HA4
                        brick5_reference_frame="world",
@@ -243,7 +297,7 @@ def load_gazebo_models(table_pose=Pose(position=Point(x=1.35, y=-0.09, z=-0.1)),
                        brick9_reference_frame="world",
                        brick10_pose=Pose(position=Point(x=0.820, y=-0.0575, z=0.7),), # brick 10 HB2
                        brick10_reference_frame="world",
-                       brick11_pose=Pose(position=Point(x=0.8575, y=-0.200, z=0.7),orientation=Quaternion(x=0, y=0, z=0.70738827, w=0.70738827)), # brick 11 HB3
+                       brick11_pose=Pose(position=Point(x=0.9175, y=-0.200, z=0.7),orientation=Quaternion(x=0, y=0, z=0.70738827, w=0.70738827)), # brick 11 HB3
                        brick11_reference_frame="world",
                        brick12_pose=Pose(position=Point(x=0.8200, y=-0.3425, z=0.7)), # brick 12 HB4
                        brick12_reference_frame="world",
@@ -258,7 +312,7 @@ def load_gazebo_models(table_pose=Pose(position=Point(x=1.35, y=-0.09, z=-0.1)),
                        brick16_reference_frame="world",
                        brick17_pose=Pose(position=Point(x=0.820, y=0.3425, z=0.7)), # brick 17 MA2
                        brick17_reference_frame="world",
-                       brick18_pose=Pose(position=Point(x=0.8575, y=0.200, z=0.7),orientation=Quaternion(x=0, y=0, z=0.70738827, w=0.70738827)), # brick 18 MA3
+                       brick18_pose=Pose(position=Point(x=0.9175, y=0.200, z=0.7),orientation=Quaternion(x=0, y=0, z=0.70738827, w=0.70738827)), # brick 18 MA3
                        brick18_reference_frame="world",
                        brick19_pose=Pose(position=Point(x=0.8200, y=0.05750, z=0.7)), # brick 19 MA4
                        brick19_reference_frame="world",
@@ -272,7 +326,7 @@ def load_gazebo_models(table_pose=Pose(position=Point(x=1.35, y=-0.09, z=-0.1)),
                        brick23_reference_frame="world",
                        brick24_pose=Pose(position=Point(x=0.7200, y=0.7325, z=0.7)), # brick 24 MB2
                        brick24_reference_frame="world",
-                       brick25_pose=Pose(position=Point(x=0.7875, y=0.5900, z=0.7),orientation=Quaternion(x=0, y=0, z=0.70738827, w=0.70738827)), # brick 25 MB3
+                       brick25_pose=Pose(position=Point(x=0.8175, y=0.5900, z=0.7),orientation=Quaternion(x=0, y=0, z=0.70738827, w=0.70738827)), # brick 25 MB3
                        brick25_reference_frame="world",
                        brick26_pose=Pose(position=Point(x=0.7200, y=0.4475, z=0.7)), # brick 26 MB4
                        brick26_reference_frame="world",
@@ -315,10 +369,6 @@ def load_gazebo_models(table_pose=Pose(position=Point(x=1.35, y=-0.09, z=-0.1)),
     brick6_xml = ''
     with open (model_path + "new_brick/model.sdf", "r") as brick6_file:
         brick6_xml=brick6_file.read().replace('\n', '')
-    # Load Brick7 SDF
-    # brick7_xml = ''
-    # with open (model_path + "new_brick/model.sdf", "r") as brick7_file:
-    #     brick7_xml=brick7_file.read().replace('\n', '')
     # Load Brick8 SDF
     brick8_xml = ''
     with open (model_path + "new_brick/model.sdf", "r") as brick8_file:
@@ -343,10 +393,6 @@ def load_gazebo_models(table_pose=Pose(position=Point(x=1.35, y=-0.09, z=-0.1)),
     brick13_xml = ''
     with open (model_path + "new_brick/model.sdf", "r") as brick13_file:
         brick13_xml=brick13_file.read().replace('\n', '')
-    # Load Brick14 SDF
-    # brick14_xml = ''
-    # with open (model_path + "new_brick/model.sdf", "r") as brick14_file:
-    #     brick14_xml=brick14_file.read().replace('\n', '')
     # Load Brick15 SDF
     brick15_xml = ''
     with open (model_path + "new_brick/model.sdf", "r") as brick15_file:
@@ -371,10 +417,6 @@ def load_gazebo_models(table_pose=Pose(position=Point(x=1.35, y=-0.09, z=-0.1)),
     brick20_xml = ''
     with open (model_path + "new_brick/model.sdf", "r") as brick20_file:
         brick20_xml=brick20_file.read().replace('\n', '')
-    # Load Brick21 SDF
-    # brick21_xml = ''
-    # with open (model_path + "new_brick/model.sdf", "r") as brick21_file:
-    #     brick21_xml=brick21_file.read().replace('\n', '')
     # Load Brick22 SDF
     brick22_xml = ''
     with open (model_path + "new_brick/model.sdf", "r") as brick22_file:
@@ -399,10 +441,6 @@ def load_gazebo_models(table_pose=Pose(position=Point(x=1.35, y=-0.09, z=-0.1)),
     brick27_xml = ''
     with open (model_path + "new_brick/model.sdf", "r") as brick27_file:
         brick27_xml=brick27_file.read().replace('\n', '')
-    # Load Brick28 SDF
-    # brick28_xml = ''
-    # with open (model_path + "new_brick/model.sdf", "r") as brick28_file:
-    #     brick28_xml=brick28_file.read().replace('\n', '')
     # Load Brick29 SDF
     brick29_xml = ''
     with open (model_path + "new_brick/model.sdf", "r") as brick29_file:
@@ -469,14 +507,6 @@ def load_gazebo_models(table_pose=Pose(position=Point(x=1.35, y=-0.09, z=-0.1)),
                                brick6_pose, brick6_reference_frame)
     except rospy.ServiceException, e:
         rospy.logerr("Spawn SDF service call failed: {0}".format(e))
-    # # Spawn Brick7 SDF
-    # rospy.wait_for_service('/gazebo/spawn_sdf_model')
-    # try:
-    #     spawn_brick7 = rospy.ServiceProxy('/gazebo/spawn_sdf_model', SpawnModel)
-    #     resp_brick7 = spawn_sdf("brick7", brick7_xml, "/",
-    #                            brick7_pose, brick7_reference_frame)
-    # except rospy.ServiceException, e:
-    #     rospy.logerr("Spawn SDF service call failed: {0}".format(e))
     # Spawn Brick8 SDF
     rospy.wait_for_service('/gazebo/spawn_sdf_model')
     try:
@@ -525,14 +555,6 @@ def load_gazebo_models(table_pose=Pose(position=Point(x=1.35, y=-0.09, z=-0.1)),
                                brick13_pose, brick13_reference_frame)
     except rospy.ServiceException, e:
         rospy.logerr("Spawn SDF service call failed: {0}".format(e))
-    # Spawn Brick14 SDF
-    # rospy.wait_for_service('/gazebo/spawn_sdf_model')
-    # try:
-    #     spawn_brick14 = rospy.ServiceProxy('/gazebo/spawn_sdf_model', SpawnModel)
-    #     resp_brick14 = spawn_sdf("brick14", brick14_xml, "/",
-    #                            brick14_pose, brick14_reference_frame)
-    # except rospy.ServiceException, e:
-    #     rospy.logerr("Spawn SDF service call failed: {0}".format(e))
     # Spawn Brick15 SDF
     rospy.wait_for_service('/gazebo/spawn_sdf_model')
     try:
@@ -637,30 +659,6 @@ def load_gazebo_models(table_pose=Pose(position=Point(x=1.35, y=-0.09, z=-0.1)),
                                brick27_pose, brick27_reference_frame)
     except rospy.ServiceException, e:
         rospy.logerr("Spawn SDF service call failed: {0}".format(e))
-    # Spawn Brick28 SDF
-    # rospy.wait_for_service('/gazebo/spawn_sdf_model')
-    # try:
-    #     spawn_brick28 = rospy.ServiceProxy('/gazebo/spawn_sdf_model', SpawnModel)
-    #     resp_brick28 = spawn_sdf("brick28", brick28_xml, "/",
-    #                            brick28_pose, brick28_reference_frame)
-    # except rospy.ServiceException, e:
-    #     rospy.logerr("Spawn SDF service call failed: {0}".format(e))
-    # Spawn Brick29 SDF
-    rospy.wait_for_service('/gazebo/spawn_sdf_model')
-    try:
-        spawn_brick29 = rospy.ServiceProxy('/gazebo/spawn_sdf_model', SpawnModel)
-        resp_brick29 = spawn_sdf("brick29", brick29_xml, "/",
-                               brick29_pose, brick29_reference_frame)
-    except rospy.ServiceException, e:
-        rospy.logerr("Spawn SDF service call failed: {0}".format(e))
-    # # Spawn Brick30 SDF
-    rospy.wait_for_service('/gazebo/spawn_sdf_model')
-    try:
-        spawn_brick30 = rospy.ServiceProxy('/gazebo/spawn_sdf_model', SpawnModel)
-        resp_brick30 = spawn_sdf("brick30", brick30_xml, "/",
-                               brick30_pose, brick30_reference_frame)
-    except rospy.ServiceException, e:
-        rospy.logerr("Spawn SDF service call failed: {0}".format(e))
 
 
 def delete_gazebo_models():
@@ -733,7 +731,7 @@ def pick_and_place_left_threaded (): # Minute hand
     Display = "00"
     while not rospy.is_shutdown():
       # Time = time.ctime()[14:16]
-      Time = "57" # to test
+      Time = "03" # to test
       if Time != Display: 
         Display = Time_change(LEFT, Display,Time) 
     return 0
@@ -745,7 +743,7 @@ def pick_and_place_right_threaded (): # Hour hand
     Display = "00"
     while not rospy.is_shutdown():
       # Time = time.ctime()[11:13]
-      Time = "12" # to test
+      Time = "20" # to test
       if Time != Display: 
         Display = Time_change(RIGHT, Display,Time)
     return 0
@@ -828,6 +826,7 @@ def change_bricks (side, BricksIncoming,BricksOutgoing,Hstore,Mstore,Digit):
         return (Hstore, Store)
 
 
+
 #------------------------------------------------------------------------
 def initial_bricks():
     global BrickPlaces
@@ -846,18 +845,18 @@ def initial_bricks():
                 'HA0':(412.5,-590,1),
                 'HA1':(510.0,-447.5,0),
                 'HA2':(720.0,-447.5,0),
-                'HA3':(787.5,-590,1),
-                'HA4':(720,-747.5,0),
-                'HA5':(510,-747.5,0),
+                'HA3':(817.5,-590,1),
+                'HA4':(720,-732.5,0),
+                'HA5':(510,-732.5,0),
                 'HA6':(605,-590,1),
                 #Hour Digit 2
-                'HB0':(512.5,-185,1),
-                'HB1':(610,-42.5,0),
-                'HB2':(820,-42.5,0),
-                'HB3':(857.5,-185.0,1),
-                'HB4':(820,-327.5,0),
-                'HB5':(610,-327.5,0),
-                'HB6':(705,-185,1),
+                'HB0':(512.5,-200,1),
+                'HB1':(610,-57.5,0),
+                'HB2':(820,-57.5,0),
+                'HB3':(917.5,-200,1),
+                'HB4':(820,-342.5,0),
+                'HB5':(610,-342.5,0),
+                'HB6':(705,-200,1),
                 #Hour Digit Store
                 'HS0':(220,-497.5,0),
                 'HS1':(220,-602.5,0),
@@ -872,7 +871,7 @@ def initial_bricks():
                 'MA0':(512.5,200,1),
                 'MA1':(610,342.5,0),
                 'MA2':(820,342.5,0),
-                'MA3':(857.5,200,1),
+                'MA3':(917.5,200,1),
                 'MA4':(820,57.5,0),
                 'MA5':(610,57.5,0),
                 'MA6':(705,200,1),
@@ -880,9 +879,9 @@ def initial_bricks():
                 'MB0':(412.5,590,1),
                 'MB1':(510,732.5,0),
                 'MB2':(720,732.5,0),
-                'MB3':(787.5,590,1),
-                'MB4':(720,465.5,0),
-                'MB5':(510,465.5,0),
+                'MB3':(817.5,590,1),
+                'MB4':(720,447.5,0),
+                'MB5':(510,447.5,0),
                 'MB6':(605,590,1),
                 #Minute Digit Store
                 'MS0':(220,597.5,0),
@@ -977,19 +976,15 @@ def main():
     global overhead_orientation
     global overhead_orientation2
     global overhead_orientation3
-    """RSDK Inverse Kinematics Pick and Place Example
-    A Pick and Place example using the Rethink Inverse Kinematics
-    Service which returns the joint angles a requested Cartesian Pose.
-    This ROS Service client is used to request both pick and place
-    poses in the /base frame of the robot.
-    Note: This is a highly scripted and tuned demo. The object location
-    is "known" and movement is done completely open loop. It is expected
-    behavior that Baxter will eventually mis-pick or drop the block. You
-    can improve on this demo by adding perception and feedback to close
-    the loop.
-    """
-    rospy.init_node("ik_pick_and_place_demo")
 
+    rospy.init_node("ik_pick_and_place_demo")
+    # Load Gazebo Models via Spawning Services
+    # Note that the models reference is the /world frame
+    # and the IK operates with respect to the /base frame
+    print("Initialising Bricks")
+    initial_bricks ()
+    print("Loading Gazebo Models")
+    load_gazebo_models()
     # Remove models from the scene on shutdown
     rospy.on_shutdown(delete_gazebo_models)
 
@@ -1014,32 +1009,18 @@ def main():
                              y=0.999649402929,
                              z=0.00737916180073,
                              w=0.00486450832011)
-    #print('overhead')
-    #print(overhead_orientation)
-    #print(type(overhead_orientation))
 
-    orig = np.array([-0.0249590815779,0.999649402929,0.00737916180073,0.00486450832011]) #quaternion_from_euler(0,1,0)
-    #print(type(orig))
+    orig = np.array([-0.0249590815779,0.999649402929,0.00737916180073,0.00486450832011]) 
     overhead_orientation2 = quaternion_multiply(quaternion_from_euler(0,0,1.57),orig)
-    #print(type(overhead_orientation2))
     overhead2 = Quaternion(x=overhead_orientation2[0], y=overhead_orientation2[1], z=overhead_orientation2[2], w=overhead_orientation2[3])
-    #print('overhead2: ')
-    #print(overhead2)
-    #print(type(overhead2))
-    #overhead_orientation2.normalize()
+
 
     orig = np.array([-0.0249590815779,0.999649402929,0.00737916180073,0.00486450832011])
     overhead_orientation3 = quaternion_multiply(quaternion_from_euler(0,0,-1.57),orig)
-    #print('Orient 3: ')
-    #print(overhead_orientation3)
-    #print(type(overhead_orientation3))
     overhead3 = Quaternion(x=overhead_orientation3[0],y=overhead_orientation3[1], z=overhead_orientation3[2], w=overhead_orientation3[3])
-    #print('overhead3: ')
-    #print(overhead3)
-    #print(type(overhead3))
 
     limbR = 'right'
-    hover_distance = 0.2 # meters
+    hover_distance = 0.15 # meters
     # Starting Joint angles for right arm
     starting_joint_anglesR = {'right_w0': 0.0164238,
                              'right_w1': 1.17581551,
@@ -1059,27 +1040,9 @@ def main():
     # You may wish to replace these poses with estimates
     # from a perception node.
 
-    #M-- pick/place 0 uses overhead_orientation
-    #block_poses.append(Pose(
-     #   position=Point(x=0.7, y=0.30, z=0.05),
-      #  orientation=Quaternion(x=overhead_orientation2[0],y=overhead_orientation2[1],z=overhead_orientation2[2],w=overhead_orientation2[3])))
-    #block_poses.append(Pose(
-     #   position=Point(x=0.7, y=0.30, z=0.05),
-      #  orientation=overhead_orientation))
-    # block_posesR = list()  # -  defined in initalise_bricks
-    # The Pose of the block in its initial location
-
     # Move to the desired starting angles
     pnp.move_to_start(starting_joint_angles)
     pnpR.move_to_start(starting_joint_anglesR)
-
-    # Load Gazebo Models via Spawning Services
-    # Note that the models reference is the /world frame
-    # and the IK operates with respect to the /base frame
-    print("Initialising Bricks")
-    initial_bricks ()
-    print("Loading Gazebo Models")
-    load_gazebo_models()
 
     #Create 2 seperate indexes
     idx = 0
@@ -1103,4 +1066,4 @@ def main():
     print ("Exiting Main Thread")
 
 if __name__ == '__main__':
-  sys.exit(main())
+    sys.exit(main())
